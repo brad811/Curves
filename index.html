@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Curves</title>
+</head>
+<body>
+
+<canvas id="canvas" width=400 height=400></canvas>
+
+<script type="text/javascript">
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext("2d");
+
+const canvasSize = 400;
+const trailLength = 50;
+const colorFrequency = .01;
+
+// don't wanna be calculating sine waves on the fly
+const calculatedColors = [];
+for(let i = 0; i * colorFrequency <= Math.PI * 2; i++) {
+  let red   = Math.sin(colorFrequency * i + 0) * 127 + 128;
+  let green = Math.sin(colorFrequency * i + 2) * 127 + 128;
+  let blue  = Math.sin(colorFrequency * i + 4) * 127 + 128;
+
+  calculatedColors.push(red + ", " + green + ", " + blue);
+}
+
+class Point {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+
+  add(point) {
+    this.x += point.x;
+    this.y += point.y;
+  }
+
+  clone() {
+    return new Point(this.x, this.y);
+  }
+}
+
+function getNextStep(src, steps) {
+  let dest = new Point(Math.random() * canvasSize, Math.random() * canvasSize);
+  let step = new Point((dest.x - src.x) / steps, (dest.y - src.y) / steps);
+  return step;
+}
+
+class Curve {
+  constructor(start, end, controlStart, controlEnd, colorStepCount) {
+    this.start = start;
+    this.end = end;
+    this.controlStart = controlStart;
+    this.controlEnd = controlEnd;
+    this.colorStepCount = colorStepCount;
+
+    this.numStepsToDest = 200;
+    this.numStepsTaken = this.numStepsToDest;
+    this.frames = [];
+  }
+
+  clone() {
+    return new Curve(
+      start.clone(),
+      end.clone(),
+      controlStart.clone(),
+      controlEnd.clone(),
+      this.colorStepCount
+    );
+  }
+
+  step() {
+    if(this.numStepsTaken >= this.numStepsToDest) {
+      // start moving in a new direction
+      this.destStart = getNextStep(this.start, this.numStepsToDest);
+      this.destEnd = getNextStep(this.end, this.numStepsToDest);
+      this.destConrol_1 = getNextStep(this.controlStart, this.numStepsToDest);
+      this.destControl_2 = getNextStep(this.controlEnd, this.numStepsToDest);
+
+      this.numStepsTaken = 0;
+    }
+
+    // leave a trail line
+    if (this.numStepsTaken % (this.numStepsToDest / trailLength) == 0) {
+      if(this.frames.length >= trailLength)
+        this.frames.shift();
+      this.frames.push(this.clone());
+    }
+
+    // move
+    this.start.add(this.destStart);
+    this.end.add(this.destEnd);
+    this.controlStart.add(this.destConrol_1);
+    this.controlEnd.add(this.destControl_2);
+
+    this.numStepsTaken++;
+
+    // cycle through the rainbow
+    this.colorStepCount++;
+    if(this.colorStepCount * colorFrequency >= Math.PI * 2) {
+      this.colorStepCount = 0;
+    }
+  }
+
+  renderCurve(curve) {
+    ctx.beginPath();
+
+    ctx.moveTo(curve.start.x, curve.start.y);
+    ctx.bezierCurveTo(
+      curve.controlStart.x, curve.controlStart.y,
+      curve.controlEnd.x, curve.controlEnd.y,
+      curve.end.x, curve.end.y
+    );
+
+    ctx.moveTo(curve.end.x, curve.end.y);
+    ctx.bezierCurveTo(
+      canvasSize - curve.controlStart.x, canvasSize - curve.controlStart.y,
+      canvasSize - curve.controlEnd.x, canvasSize - curve.controlEnd.y,
+      curve.start.x, curve.start.y
+    );
+
+    ctx.stroke();
+  }
+
+  getColor(trailPosition) {
+    return "rgba(" + calculatedColors[this.colorStepCount] + ", "+(1.0 * (trailPosition / trailLength))+")";
+  }
+
+  render(ctx) {
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0,0,canvasSize,canvasSize);
+
+    // draw trail
+    for(let i = this.frames.length - 1; i >= 0; i--) {
+      let curCurve = this.frames[i];
+      ctx.strokeStyle = curCurve.getColor(i);
+      this.renderCurve(curCurve);
+    }
+
+    ctx.strokeStyle = this.getColor(trailLength);
+    this.renderCurve(this);
+  }
+}
+
+const start = new Point(100, 200);
+const end = new Point(300, 200);
+const controlStart = new Point(50, 140);
+const controlEnd = new Point(350, 20);
+
+const curve = new Curve(start, end, controlStart, controlEnd, 0);
+
+const frame = function() {
+  curve.step();
+  curve.render(ctx);
+  setTimeout(frame, 20);
+}
+
+frame();
+</script>
+
+<style>
+canvas {
+  background-color: black;
+}
+</style>
+
+</body>
+</html>
